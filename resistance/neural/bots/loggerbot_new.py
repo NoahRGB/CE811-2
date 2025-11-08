@@ -38,7 +38,7 @@ class LoggerBot(Bot):
                 self.num_missions_voted_down_with_total_suspect_count[self.game.players[i]][total_suspect_count] += 1
 
         for p in self.game.players:
-            self.training_feature_vectors[p].append([self.game.turn, self.game.tries, p.index, p.name, self.missions_been_on[p], self.failed_missions_been_on[p], self.upvoted_missions_they_are_on[p]]+self.num_missions_voted_up_with_total_suspect_count[p]+self.num_missions_voted_down_with_total_suspect_count[p])
+            self.training_feature_vectors[p].append([p.index, p.name, self.game.tries, self.game.wins==2, self.was_on_first_failed_mission[p], self.game.turn, self.missions_been_on[p], self.failed_missions_been_on[p], self.upvoted_missions_they_are_on[p]]+self.num_missions_voted_up_with_total_suspect_count[p]+self.num_missions_voted_down_with_total_suspect_count[p])
 
     def onGameRevealed(self, players, spies):
         """This function will be called to list all the players, and if you're
@@ -51,7 +51,9 @@ class LoggerBot(Bot):
         self.num_missions_voted_up_with_total_suspect_count = {}
         self.num_missions_voted_down_with_total_suspect_count = {}
         self.upvoted_missions_they_are_on = {}
+        self.was_on_first_failed_mission = {}
         for player in players:
+            self.was_on_first_failed_mission[player] = 0
             self.upvoted_missions_they_are_on[player] = 0
             self.failed_missions_been_on[player] = 0
             self.missions_been_on[player] = 0
@@ -67,8 +69,11 @@ class LoggerBot(Bot):
         @param num_sabotages    Integer how many times the mission was sabotaged.
         """
         for player in self.game.team:
+
             if num_sabotages > 0:
                 self.failed_missions_been_on[player] += 1
+                if self.game.losses == 1:
+                    self.was_on_first_failed_mission[player] = 1
             self.missions_been_on[player] += 1
 
     def onGameComplete(self, win, spies):
