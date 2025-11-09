@@ -1,21 +1,28 @@
 from player import Bot 
 from game import State
 import random
+import pickle
 import sys,os
 os.environ["KERAS_BACKEND"] = "tensorflow"
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
-from resistance.neural.bots.loggerbot_original import LoggerBot
+from loggerbot_new2 import LoggerBot
 
 bot_names = ["Trickerton", "Logicalton", "Simpleton", "NeuralBot", "LoggerBot", "Bounder"]
 models = {}
+scalers = {}
 for bot in bot_names:
-    model_filename = f"./second_test/{bot}_classifier.keras"
-    if os.path.exists("bots" + os.sep + model_filename):
-        model_filename="bots" + os.sep + model_filename
+    scaler_filename = f"neural/models/third_separate_test/{bot}_scaler.pkl"
+    model_filename = f"neural/models/third_separate_test/{bot}_classifier.keras"
+    if os.path.exists(model_filename):
         model = keras.models.load_model(model_filename)
         models[bot] = model
+    if os.path.exists(scaler_filename):
+        with open(scaler_filename, "rb") as file:
+            scalers[bot] = pickle.load(file)
+    
+
 
 # trw=[w.numpy() for w in model.trainable_weights] # capture all of the weights and biases in the saved model.
 
@@ -28,18 +35,58 @@ class NeuralBot(LoggerBot):
             # we built data to train our neural network - otherwise the neural network
             # is not bieng used to approximate the same function it's been trained to model.
             # That's why this class inherits from the class LoggerBot- so we can ensure that logic is replicated exactly.
-            input_vector = [self.game.turn, self.game.tries, p.index, p.name, self.missions_been_on[p],
-                            self.failed_missions_been_on[p]] + self.num_missions_voted_up_with_total_suspect_count[p] + \
-                           self.num_missions_voted_down_with_total_suspect_count[p]
-            input_vector = input_vector[4:] # remove the first 4 cosmetic details, as we did when training the neural network
+            avg_suspicion_of_voted_up_missions = 0
+            avg_suspicion_of_voted_down_missions = 0
+            total_missions_voted_up = sum(self.num_missions_voted_up_with_total_suspect_count[p])
+            total_missions_voted_down = sum(self.num_missions_voted_down_with_total_suspect_count[p])
+
+            for i in range(0, len(self.num_missions_voted_up_with_total_suspect_count[p])):
+                avg_suspicion_of_voted_up_missions += self.num_missions_voted_up_with_total_suspect_count[p][i] * i
+            
+            for i in range(0, len(self.num_missions_voted_down_with_total_suspect_count[p])):
+                avg_suspicion_of_voted_down_missions += self.num_missions_voted_down_with_total_suspect_count[p][i] * i
+
+            if total_missions_voted_up > 0:                     
+                avg_suspicion_of_voted_up_missions /= total_missions_voted_up
+
+            if total_missions_voted_down > 0:                     
+                avg_suspicion_of_voted_down_missions /= total_missions_voted_down
+
+            on = float(self.upvoted_missions_they_are_on[p]) / float(self.missions_been_on[p]) if self.missions_been_on[p] > 0 else 0.5
+            off = float(self.upvoted_missions_they_are_off[p]) / float(self.missions_been_off[p]) if self.missions_been_off[p] > 0 else 0.5
+            voting_bias = on - off
+    
+            ratio_missions_on_that_fail = self.failed_missions_been_on[p] / (self.missions_been_on[p] if self.missions_been_on[p] > 0 else 1)
+
+            input_vector = [voting_bias, 
+                            ratio_missions_on_that_fail,
+                            self.voted_majority_count[p], 
+                            self.game.wins==2,
+                            3 - self.game.losses, 
+                            3 - self.game.wins,
+                            self.was_on_first_failed_mission[p], 
+                            self.game.turn,
+                            self.missions_been_on[p],
+                            self.failed_missions_been_on[p],
+                            self.upvoted_missions_they_are_on[p], 
+                            self.upvoted_missions_they_are_off[p],
+                            avg_suspicion_of_voted_up_missions, 
+                            avg_suspicion_of_voted_down_missions]
 
             input_vector = np.stack(input_vector, axis=0)
             if p.name in models:
                 model = models[p.name]
             else:
                 model = models["Bounder"]
+
+            input_vector = np.array(input_vector)
+
+            if p.name in scalers:
+                input_vector = scalers[p.name].transform(input_vector.reshape(1, -1))
+            else:
+                input_vector = scalers["Bounder"].transform(input_vector.reshape(1, -1))
             
-            output = model(input_vector.reshape(1, -1)).numpy()[0][1]
+            output = model(input_vector).numpy()[0][1]
             # print(output)
             probabilities[p] = output
 
