@@ -160,8 +160,8 @@ def assess_minimax(num_games, depths, do_minimax, do_negamax, do_negamax_prune):
 ########################################################################################
 ########################################################################################
 
-print(measure_winrates(Agents.RANDOM, Agents.STATIC_EVALUATOR, 10000))
-print(measure_winrates(Agents.STATIC_EVALUATOR, Agents.RANDOM, 10000))
+# print(measure_winrates(Agents.RANDOM, Agents.STATIC_EVALUATOR, 10000))
+# print(measure_winrates(Agents.STATIC_EVALUATOR, Agents.RANDOM, 10000))
 
 # print(measure_winrates(Agents.RANDOM, Agents.MINIMAX, 100))
 # print(measure_winrates(Agents.MINIMAX, Agents.RANDOM, 100))
@@ -172,16 +172,20 @@ print(measure_winrates(Agents.STATIC_EVALUATOR, Agents.RANDOM, 10000))
 
 #=============== ensure static evaluator is 0 sum ======================
 
-board = Board(grid=np.array([[0, 0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0, 0],
-                            [1, 1, 2, 0, 0, 0, 0],
-                            [1, 2, 2, 2, 0, 0, 0]]))
-# print(static_evaluator(board, 1), static_evaluator(board, 2), static_evaluator(board, 1) - static_evaluator(board, 2))
-assert abs(static_evaluator(board, 1)) - abs(static_evaluator(board, 2)) == 0
+# board = Board(grid=np.array([[0, 0, 0, 0, 0, 0, 0],
+#                             [0, 0, 0, 0, 0, 0, 0],
+#                             [0, 0, 0, 0, 0, 0, 0],
+#                             [0, 0, 0, 0, 0, 0, 0],
+#                             [1, 1, 2, 0, 0, 0, 0],
+#                             [1, 2, 2, 2, 0, 0, 0]]))
+# # print(static_evaluator(board, 1), static_evaluator(board, 2), static_evaluator(board, 1) - static_evaluator(board, 2))
+# assert abs(static_evaluator(board, 1)) - abs(static_evaluator(board, 2)) == 0
 
-
+board = Board()
+bestmove1, value1 = minimax(board, current_depth=0, max_depth=1, player=1)
+bestmove2, value2 = minimax(board, current_depth=0, max_depth=1, player=2)
+print(bestmove1, value1)
+print(bestmove2, value2)
 
 # =============== measure MCTS vs minimax ======================
 

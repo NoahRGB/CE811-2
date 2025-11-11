@@ -11,24 +11,24 @@ from sklearn.preprocessing import MinMaxScaler
 
 
 # This assumes we've copied the log file ("LoggerBot.log") into our current working folder...
-df0 = pd.read_csv("neural/trainers/LoggerBot.log",names=["PlayerID","PlayerName","Tries", "VotingBias", "RatioMissionsBeenOnThatFail","VotedMajorityCount", "LastChance", "LossesLeft", "WinsLeft", "OnFirstFailedMission", "GameTurn", "MissionsBeenOn","FailedMissionsBeenOn","UpvotedMissionsTheyAreOn", "UpvotedMissionsTheyAreOff", "AvgSuspicionOfVotedUpMissions", "AvgSuspicionOfVotedDownMissions", "VotedUp0","VotedUp1","VotedUp2","VotedUp3","VotedUp4","VotedUp5","VotedDown0","VotedDown1","VotedDown2","VotedDown3","VotedDown4","VotedDown5","Spy"])
+df0 = pd.read_csv("neural/trainers/LoggerBot.log",names=["PlayerID","PlayerName","Tries", "RatioMissionsBeenOnThatFail","VotedMajorityCount", "LossesLeft", "WinsLeft", "OnFirstFailedMission", "GameTurn", "MissionsBeenOn","FailedMissionsBeenOn","UpvotedMissionsTheyAreOn", "UpvotedMissionsTheyAreOff", "AvgSuspicionOfVotedUpMissions", "AvgSuspicionOfVotedDownMissions", "Spy"])
 
-df = df0[["VotingBias", "RatioMissionsBeenOnThatFail","VotedMajorityCount", "LastChance", "LossesLeft", "WinsLeft", "OnFirstFailedMission", "GameTurn", "MissionsBeenOn","FailedMissionsBeenOn","UpvotedMissionsTheyAreOn", "UpvotedMissionsTheyAreOff", "AvgSuspicionOfVotedUpMissions", "AvgSuspicionOfVotedDownMissions","Spy"]]
+df = df0[["RatioMissionsBeenOnThatFail","VotedMajorityCount", "LossesLeft", "WinsLeft", "OnFirstFailedMission", "GameTurn", "MissionsBeenOn","FailedMissionsBeenOn","UpvotedMissionsTheyAreOn", "UpvotedMissionsTheyAreOff", "AvgSuspicionOfVotedUpMissions", "AvgSuspicionOfVotedDownMissions","Spy"]]
 
 resistance_count = (df["Spy"] == 0).sum()
 spy_count = (df["Spy"] == 1).sum()
 
-x_train = df.values[:,0:14].astype(np.float32) # This filters out only the columns we want to use as input vector for our NN.
+x_train = df.values[:,0:12].astype(np.float32) # This filters out only the columns we want to use as input vector for our NN.
 # with open("neural/trainers/scaler.pkl", "rb") as file:
 #   scaler = pickle.load(file)
 # x_train = scaler.transform(x_train)
 
-scaler = MinMaxScaler()
-x_train = scaler.fit_transform(x_train)
-with open("single_scaler.pkl", "wb") as f:
-  pickle.dump(scaler, f)
+# scaler = MinMaxScaler()
+# x_train = scaler.fit_transform(x_train)
+# with open("single_scaler.pkl", "wb") as f:
+#   pickle.dump(scaler, f)
 
-y_train=df.values[:,14].astype(np.int32) # This is our target column.
+y_train=df.values[:,12].astype(np.int32) # This is our target column.
 num_inputs=x_train.shape[1] # this works out how many columns there are in x, i.e. how many inputs our network needs.
 num_outputs=2 # Two outputs needed - for "spy" or "not spy".
 
@@ -40,12 +40,20 @@ x_train,y_train=x_train[:train_set_size],y_train[:train_set_size]
 
 
 # Define Sequential model with 3 layers
+# model = keras.Sequential([
+
+#     layers.Dense(64, activation="relu", input_shape=(num_inputs,)),
+#     layers.Dense(32, activation="relu"),
+#     layers.Dropout(0.2),
+#     layers.Dense(16, activation="relu"),
+#     layers.Dense(num_outputs, activation="softmax")
+
+# ], name="my_neural_network")
+
 model = keras.Sequential([
 
-    layers.Dense(64, activation="relu", input_shape=(num_inputs,)),
-    layers.Dense(32, activation="relu"),
-    layers.Dropout(0.2),
-    layers.Dense(16, activation="relu"),
+    layers.Dense(10, activation="relu", input_shape=(num_inputs,)),
+    layers.Dense(10, activation="relu"),
     layers.Dense(num_outputs, activation="softmax")
 
 ], name="my_neural_network")
@@ -66,7 +74,7 @@ history = model.fit(
     y_train,
     batch_size=128,
     epochs=40,
-    shuffle=True,
+    shuffle=False,
     validation_data=(x_val, y_val), verbose=1,
 )
 
@@ -83,4 +91,4 @@ plt.show()
 
 
 
-model.save('loggerbot_new_classifier.keras')
+model.save('neuralbot_classifier.keras')
