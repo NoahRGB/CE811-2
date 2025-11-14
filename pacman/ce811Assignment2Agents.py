@@ -16,6 +16,10 @@ import numpy as np
 from util import manhattanDistance
 from game import Agent, Directions
 
+from dijkstra import calc_path_to_point, calculate_gscores
+
+BY_LENGTH = lambda el: len(el)
+
 class ce811GoWestAgent(Agent):
   def getAction(self, gameState):
     return Directions.WEST
@@ -218,57 +222,6 @@ class ce811OneStepLookaheadManhattanAgent(Agent):
       evaluation += evaluator[0] * evaluator[1]
 
     return evaluation
-  
-def calculate_neighbouring_nodes(node, maze):
-    # for any node (y,x), calculates a dictionary of which nodes are neighbours in this maze array?
-    maze_height = maze.height
-    maze_width = maze.width
-    directions = [(1,0), (-1,0), (0,1), (0,-1)]
-    (x ,y) = node
-    result_neigbours = {}
-    for (dx,dy) in directions:
-        neighbour_y = y + dy
-        neighbour_x = x + dx
-        # check if this potential neighbour goes off the edges of the maze:
-        if neighbour_y >= 0 and neighbour_y < maze_height and neighbour_x >= 0 and neighbour_x<maze_width:
-            # check if this potential neighbour is not a wall:
-            if maze[neighbour_x][neighbour_y] == 0:
-                # we have found a valid neighbouring node that is not a wall
-                result_neigbours[(neighbour_x,neighbour_y)] = 1 # this says the distance to this neighbour is 1
-                # Note that all neighbours in this problem are distance 1 away!
-    return result_neigbours
-
-def calculate_gscores(maze, start_node):
-    assert str(type(maze))=="<class 'game.Grid'>"
-    maze_height = maze.height
-    maze_width = maze.width
-    assert maze[start_node[0]][start_node[1]]==False,"start_node error "+str(start_node) # start node must point to a False in the maze array
-
-    array_gScores = np.zeros((maze_height, maze_width), dtype=int)
-    g_scores = { start_node: 0 }
-    parent_nodes = { start_node: None}
-    open_nodes = [start_node]
-    closed_list = []
-    while len(open_nodes) > 0:
-        sorted_list_of_open_nodes_nodes = sorted(open_nodes, key = lambda n: g_scores[n])
-        current_node = sorted_list_of_open_nodes_nodes[0]
-        current_distance = g_scores[current_node]
-        closed_list.append(current_node)
-        array_gScores[current_node[1]][current_node[0]] = current_distance
-        open_nodes.remove(current_node)
-        neighbours = calculate_neighbouring_nodes(current_node, maze)
-        for neighbour_node, neighbour_distance in neighbours.items():
-            new_dist = (current_distance + neighbour_distance)
-            if neighbour_node in g_scores:
-                if new_dist < g_scores[neighbour_node]:
-                    g_scores[neighbour_node] = new_dist
-                    parent_nodes[neighbour_node] = current_node
-            else:
-                g_scores[neighbour_node] = new_dist
-                parent_nodes[neighbour_node] = current_node
-                open_nodes.append(neighbour_node)
-            
-    return [array_gScores, parent_nodes]
 
 class ce811OneStepLookaheadDijkstraAgent(Agent):
   """
@@ -362,4 +315,83 @@ class ce811OneStepLookaheadDijkstraAgent(Agent):
 
     return evaluation
   
+class ce811DijkstraRuleAgent(Agent):
+
+  def getAction(self, gameState):
+    legal_moves = gameState.getLegalActions()
+    good_moves = [move for move in legal_moves if move != Directions.STOP]
+    g_scores, parent_nodes = calculate_gscores(gameState.getWalls(), gameState.getPacmanPosition())
+
+    ghost_scared_times = [ghostState.scaredTimer for ghostState in gameState.getGhostStates()]
+    ghost_positions = gameState.getGhostPositions()
+    ghost_distances = [g_scores[int(ghost_pos[1])][int(ghost_pos[0])] for ghost_pos in ghost_positions]
+
+    ghost_distances_dangerous = [ghost_dist for ghost_dist, time in zip(ghost_distances, ghost_scared_times) if time <= 1]
+    min_dangerous_ghost_distance = min(ghost_distances_dangerous) if len(ghost_distances_dangerous) > 0 else 0
+    closest_dangerous_ghost_position = [pos for pos, dist in zip(ghost_positions, ghost_distances) if dist == min_dangerous_ghost_distance][0] if len(ghost_distances_dangerous) > 0 else (0, 0)
+    path_to_closest_dangerous_ghost = calc_path_to_point(closest_dangerous_ghost_position, parent_nodes) if len(ghost_distances_dangerous) > 0 else []
+
+    ghost_distances_scared = [ghost_dist for ghost_dist, time in zip(ghost_distances, ghost_scared_times) if time > 1]
+    min_scared_ghost_distance = min(ghost_distances_scared) if len(ghost_distances_scared) > 0 else 0
+    closest_scared_ghost_position = [pos for pos, dist in zip(ghost_positions, ghost_distances) if dist == min_scared_ghost_distance][0] if len(ghost_distances_scared) > 0 else (0, 0)
+    path_to_closest_scared_ghost = calc_path_to_point(closest_scared_ghost_position, parent_nodes) if len(ghost_distances_scared) > 0 else []
+#
+    food_locations = gameState.getFood().asList()
+    food_distances = [g_scores[food_pos[1]][food_pos[0]] for food_pos in food_locations]
+    closest_food_position = food_locations[food_distances.index(min(food_distances))]
+    path_to_closest_food = calc_path_to_point(closest_food_position, parent_nodes) if len(food_locations) > 0 else []
+
+    optimal_dir = None
+
+    optimal_dir = path_to_closest_food[0]
+    if len(ghost_distances_scared) > 0:
+       optimal_dir = path_to_closest_scared_ghost[0]
+      
+    if len(ghost_distances_dangerous) > 0:
+      if len(path_to_closest_dangerous_ghost) < 7:
+        good_moves.remove(path_to_closest_dangerous_ghost[0])
+
+    return optimal_dir if optimal_dir in good_moves else random.choice(good_moves) if len(good_moves) > 0 else random.choice(gameState.getLegalActions())
+  
+class ce811MyBestAgent(Agent): 
+  # python pacman.py -p ce811MyBestAgent -f -q -n 10
+  # python pacman.py -p ce811MyBestAgent 
+
+  def getAction(self, gameState):
+    legal_moves = gameState.getLegalActions()
+    safe_moves = [move for move in legal_moves if move != Directions.STOP]
+    g_scores, parent_nodes = calculate_gscores(gameState.getWalls(), gameState.getPacmanPosition())
+
+    ghost_scared_times = [ghostState.scaredTimer for ghostState in gameState.getGhostStates()]
+    ghost_positions = gameState.getGhostPositions()
+    paths = {"dangerous_ghosts" : [ghost_pos for ghost_pos, time in zip(ghost_positions, ghost_scared_times) if time <= 1],
+             "scared_ghosts" : [ghost_pos for ghost_pos, time in zip(ghost_positions, ghost_scared_times) if time > 1],
+             "food" : [food_pos for food_pos in gameState.getFood().asList()],
+             "capsules" : [capsule_pos for capsule_pos in gameState.getCapsules()]}
     
+    for name, positions in paths.items():
+      if len(positions) == 0:
+         paths[name] = [[]]
+      else: 
+        new_paths = [calc_path_to_point(pos, parent_nodes) for pos in positions]
+        new_paths.sort(key = BY_LENGTH)
+        paths[name] = new_paths
+
+
+              
+    optimal_dir = None
+
+    # optimal priority is: scared ghosts --> capsules --> food
+    optimal_dir = paths["food"][0][0]
+    if len(paths["scared_ghosts"][0]) != 0:
+       optimal_dir = paths["scared_ghosts"][0][0]
+    elif len(paths["capsules"][0]) != 0:
+       optimal_dir = paths["capsules"][0][0]
+    
+    # remove the direction that takes pacman to the closest ghost
+    if len(paths["dangerous_ghosts"][0]) != 0:
+      if len(paths["dangerous_ghosts"][0]) < 7:
+        safe_moves.remove(paths["dangerous_ghosts"][0][0])
+
+    # priority is: optimal move --> safe move --> legal move
+    return optimal_dir if optimal_dir in safe_moves else random.choice(safe_moves) if len(safe_moves) > 0 else random.choice(gameState.getLegalActions())
